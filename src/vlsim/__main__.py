@@ -1,8 +1,8 @@
-'''
-Created on Oct 1, 2019
-
-@author: ballance
-'''
+#****************************************************************************
+#* vlsim::__main__.py
+#*
+#*
+#****************************************************************************
 
 import argparse
 import subprocess
@@ -13,19 +13,42 @@ from string import Template
 pkg_dir = os.path.dirname(os.path.abspath(__file__))
 templates_dir = os.path.join(pkg_dir, "templates")
 
-vl_args = ['/bin/sh', 'verilator', '--cc', '--exe']
-#vl_args = ['verilator', '--cc', '--exe']
+#vl_args = ['/bin/sh', 'verilator', '--cc', '--exe']
+#vl_args = ['verilator_bin', '--cc', '--exe']
+
+# Determine VERILATOR_ROOT either directly or from path
+if 'VERILATOR_ROOT' not in os.environ:
+    for p in os.environ["PATH"].split(':'):
+        if os.path.exists(os.path.join(p, "verilator")) or os.path.exists(os.path.join(p, "verilator.exe")):
+            verilator_root = os.path.join(
+                os.path.dirname(p), "share", "verilator")
+            break
+           
+else:
+    verilator_root = os.environ['VERILATOR_ROOT']
+    
+outname='simv'
+    
+vl_args = [os.path.join(
+    os.path.dirname(os.path.dirname(verilator_root)), 
+    "bin", "verilator_bin"), '--cc', '--exe', '-o', '../' + outname]
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", action="append")
 parser.add_argument("-F", action="append")
+parser.add_argument("-clock", action="append")
 parser.add_argument("-j")
+parser.add_argument('-o', default='simv')
 parser.add_argument("source_files", nargs="*")
 
 
 args = parser.parse_args()
 
-print("f_files=" + str(args.f))
-print("F_files=" + str(args.F))
+if args.clock is None:
+    print("Error: no clocks specified")
+    exit(1)
+
+vl_args.append('-o')
+vl_args.append('../' + args.o)
 
 obj_dir='obj_dir'
 
@@ -33,20 +56,19 @@ j=1
 if args.j is not None:
     j = args.j
     
-    if j == "-1":
+    if j == "-1" or j == "auto":
         # TODO: auto-probe
         j = 32
         
 # Remove any existing object dir
-shutil.rmtree(obj_dir)
+if os.path.isdir(obj_dir):
+    shutil.rmtree(obj_dir)
 
-# TODO: create testbench stub
-os.mkdir(obj_dir)
+os.makedirs(obj_dir)
 
 vlsim_main_h = open(os.path.join(templates_dir, "vlsim_main.cpp"), "r")
 vlsim_main = Template(vlsim_main_h.read())
 vlsim_main_h.close()
-
 
 if args.f is not None:
     for f in args.f:
@@ -65,8 +87,12 @@ if args.source_files is not None:
 # Add in the main function
 vl_args.append(os.path.join(obj_dir, "vlsim_main.cpp"))
 
+
+#environ = os.environ
+#environ['VERILATOR_ROOT'] = verilator_root    
 print("args: " + str(vl_args))
 ret = subprocess.call(vl_args)
+print("ret=" + str(ret))
 #ret = subprocess.call(vl_args, shell=True)
 
 if ret != 0:
@@ -79,8 +105,10 @@ for f in os.listdir(obj_dir):
     if f.endswith(".mk") and f.find('_') == -1:
         top = f[1:-len(".mk")]
         
-print("top=" + top)
-
+if top is None:
+    print("Error: failed to discover name of root module")
+    exit(1)
+        
 # Now, create the real vlsim_main since we know the top-level
 vars = {
     "TOP" : top}
