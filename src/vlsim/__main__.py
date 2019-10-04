@@ -5,10 +5,14 @@
 #****************************************************************************
 
 import argparse
-import subprocess
-import shutil
 import os
+import shutil
 from string import Template
+import subprocess
+import sys
+
+from vlsim import vl_options
+
 
 pkg_dir = os.path.dirname(os.path.abspath(__file__))
 templates_dir = os.path.join(pkg_dir, "templates")
@@ -27,23 +31,70 @@ if 'VERILATOR_ROOT' not in os.environ:
 else:
     verilator_root = os.environ['VERILATOR_ROOT']
     
-outname='simv'
+verilator=os.path.join(
+    os.path.dirname(os.path.dirname(verilator_root)), "bin", "verilator")
+verilator_bin=os.path.join(
+    os.path.dirname(os.path.dirname(verilator_root)), "bin", "verilator_bin")
     
-vl_args = [os.path.join(
-    os.path.dirname(os.path.dirname(verilator_root)), 
-    "bin", "verilator_bin"), '--cc', '--exe', '-o', '../' + outname]
-parser = argparse.ArgumentParser()
-parser.add_argument("-f", action="append")
-parser.add_argument("-F", action="append")
-parser.add_argument("-clock", action="append")
+vl_args = [verilator_bin, "--cc", "--exe"]
+parser = argparse.ArgumentParser(description="Verilator front-end")
+parser.add_argument("-clkspec", action="append",
+    help="Specifies a clock. <path>=<period>")
 parser.add_argument("-j")
 parser.add_argument('-o', default='simv')
+
+vl_options.configure_vl_options(parser, verilator)
 parser.add_argument("source_files", nargs="*")
 
+argv = []
+for i in range(1,len(sys.argv)):
+    arg=sys.argv[i]
+    if arg.startswith("+"):
+        vl_args.append(arg)
+    elif arg.startswith("-D") or arg.startswith("-I"):
+        vl_args.append(arg)
+    else:
+        argv.append(arg)
 
-args = parser.parse_args()
+args = parser.parse_args(argv)
 
-if args.clock is None:
+timescale_m = {
+    "s" :  1000000000000,
+    "ms" : 1000000000,
+    "us" : 1000000,
+    "ns" : 1000,
+    "ps" : 1};
+
+clkspec=""
+if args.clkspec is not None:
+    for i in range(len(args.clkspec)):
+        cs=args.clkspec[i]
+        if cs.find("=") == -1:
+            print("Error: clkspec \"" + cs + "\" is missing an '='")
+            exit(1)
+            
+        name=cs[:cs.find("=")]
+        period=cs[cs.find("=")+1:]
+        
+        if len(period) < 2:
+            print("Error: malformed clock period \"" + period + "\"")
+            exit(1)
+            
+        period_u = period[-2:]
+        period_n = int(period[:-2])
+        if not period_u in timescale_m.keys():
+            print("Error: unknown clockspec units \"" + period_u + "\"")
+            exit(1)
+            
+        period_n *= timescale_m[period_u]
+            
+        spec = "\t\t{.name=\"" + name + "\", .clk=&prv_top->" + name + ", .period=" + str(period_n) + "}"
+        if i+1 < len(args.clkspec):
+            spec += ",\n"
+        else:
+            spec += "\n"
+        clkspec += spec
+else:
     print("Error: no clocks specified")
     exit(1)
 
@@ -70,15 +121,22 @@ vlsim_main_h = open(os.path.join(templates_dir, "vlsim_main.cpp"), "r")
 vlsim_main = Template(vlsim_main_h.read())
 vlsim_main_h.close()
 
-if args.f is not None:
-    for f in args.f:
-        vl_args.append('-f')
-        vl_args.append(f)
-   
-if args.F is not None: 
-    for f in args.F:
-        vl_args.append('-F')
-        vl_args.append(f)
+# if args.f is not None:
+#     for f in args.f:
+#         vl_args.append('-f')
+#         vl_args.append(f)
+#    
+# if args.F is not None: 
+#     for f in args.F:
+#         vl_args.append('-F')
+#         vl_args.append(f)
+
+if args.args is not None:
+    if isinstance(args.args, str):
+        vl_args.append(args.args)
+    else:
+        for arg in args.args:
+            vl_args.append(arg)
 
 if args.source_files is not None:    
     for src in args.source_files:
@@ -87,13 +145,7 @@ if args.source_files is not None:
 # Add in the main function
 vl_args.append(os.path.join(obj_dir, "vlsim_main.cpp"))
 
-
-#environ = os.environ
-#environ['VERILATOR_ROOT'] = verilator_root    
-print("args: " + str(vl_args))
 ret = subprocess.call(vl_args)
-print("ret=" + str(ret))
-#ret = subprocess.call(vl_args, shell=True)
 
 if ret != 0:
     print("Error: verilator compilation failed")
@@ -110,11 +162,25 @@ if top is None:
     exit(1)
         
 # Now, create the real vlsim_main since we know the top-level
-vars = {
-    "TOP" : top}
+if '--trace' in vl_args or "--trace-fst" in vl_args:
+    trace="1"
+else:
+    trace="0"
+    
+if "--trace-fst" in vl_args:
+    tracer_type_fst = "1"
+else:
+    tracer_type_fst = "0"
+    
+template_vars = {
+    "TOP" : top,
+    "CLOCKSPEC" : clkspec,
+    "TRACE" : trace,
+    "TRACER_TYPE_FST" : tracer_type_fst
+}
 
 vlsim_main_h = open(os.path.join(obj_dir, "vlsim_main.cpp"), "w")
-vlsim_main_h.write(vlsim_main.safe_substitute(vars))
+vlsim_main_h.write(vlsim_main.safe_substitute(template_vars))
 vlsim_main_h.close()
 
 
@@ -131,4 +197,4 @@ if ret != 0:
     mk_log.close()
     exit(1)
 
-print("ret=" + str(ret))
+exit(0)
