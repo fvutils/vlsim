@@ -74,7 +74,8 @@ int main(int argc, char **argv) {
 	unsigned long long	limit_simtime = (1000 * 1000 * 1000);
 	bool				trace_en = false;
 	const char			*trace_file = 0;
-	limit_simtime *= 100;
+//	limit_simtime *= 100;
+	limit_simtime *= 1;
 #if ${TRACER_TYPE_FST} == 1
 	VerilatedFstC		*tfp = 0;
 #else

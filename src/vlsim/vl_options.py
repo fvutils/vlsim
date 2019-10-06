@@ -37,7 +37,7 @@ def configure_vl_options(parser, verilator):
                     option=line[:line.find(" <")]
                     arg=line[line.find(" <")+2:line.find(">")]
                     desc_text = line[line.find(">")+1:].strip()
-#                    print("Option with regular argument: " + option + " ; " + arg + " ; " + desc)
+#                    print("Option with regular argument: " + option + " ; " + arg + " ; " + desc_text)
 
                     if option not in filter_list:
                         parser.add_argument(option, 

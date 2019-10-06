@@ -12,13 +12,11 @@ import subprocess
 import sys
 
 from vlsim import vl_options
+from _ast import arg
 
 def main():
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     templates_dir = os.path.join(pkg_dir, "templates")
-    
-    #vl_args = ['/bin/sh', 'verilator', '--cc', '--exe']
-    #vl_args = ['verilator_bin', '--cc', '--exe']
     
     # Determine VERILATOR_ROOT either directly or from path
     if 'VERILATOR_ROOT' not in os.environ:
@@ -41,20 +39,29 @@ def main():
     parser.add_argument("-clkspec", action="append",
         help="Specifies a clock. <path>=<period>")
     parser.add_argument("-j")
+    parser.add_argument("-sv", action="append_const", dest="args", const="-sv")
+    parser.add_argument("-Wno-fatal", action="append_const", dest="args", const="-Wno-fatal")
     parser.add_argument('-o', default='simv')
     
     vl_options.configure_vl_options(parser, verilator)
     parser.add_argument("source_files", nargs="*")
     
     argv = []
-    for i in range(1,len(sys.argv)):
+    argc = len(sys.argv)
+    i=1
+    while i < argc:
         arg=sys.argv[i]
         if arg.startswith("+"):
             vl_args.append(arg)
-        elif arg.startswith("-D") or arg.startswith("-I"):
+        elif arg.startswith("-D") or arg.startswith("-I") or arg.startswith("-G"):
             vl_args.append(arg)
+        elif arg == "-f" or arg == "-F":
+            vl_args.append(arg)
+            i += 1
+            vl_args.append(sys.argv[i])
         else:
             argv.append(arg)
+        i += 1
     
     args = parser.parse_args(argv)
     
@@ -121,16 +128,6 @@ def main():
     vlsim_main = Template(vlsim_main_h.read())
     vlsim_main_h.close()
     
-    # if args.f is not None:
-    #     for f in args.f:
-    #         vl_args.append('-f')
-    #         vl_args.append(f)
-    #    
-    # if args.F is not None: 
-    #     for f in args.F:
-    #         vl_args.append('-F')
-    #         vl_args.append(f)
-    
     if args.args is not None:
         if isinstance(args.args, str):
             vl_args.append(args.args)
@@ -144,7 +141,7 @@ def main():
            
     # Add in the main function
     vl_args.append(os.path.join(obj_dir, "vlsim_main.cpp"))
-    
+
     ret = subprocess.call(vl_args)
     
     if ret != 0:
@@ -154,8 +151,9 @@ def main():
     # Determine what the top module is
     top=None
     for f in os.listdir(obj_dir):
-        if f.endswith(".mk") and f.find('_') == -1:
+        if f.endswith(".mk") and not f.endswith('_classes.mk'):
             top = f[1:-len(".mk")]
+            break
             
     if top is None:
         print("Error: failed to discover name of root module")
