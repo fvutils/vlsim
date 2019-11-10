@@ -169,12 +169,18 @@ def main():
         tracer_type_fst = "1"
     else:
         tracer_type_fst = "0"
+
+    if "--vpi" in vl_args:
+        vpi = "1"
+    else:
+        vpi = "0"
         
     template_vars = {
         "TOP" : top,
         "CLOCKSPEC" : clkspec,
         "TRACE" : trace,
-        "TRACER_TYPE_FST" : tracer_type_fst
+        "TRACER_TYPE_FST" : tracer_type_fst,
+        "VPI" : vpi
     }
     
     vlsim_main_h = open(os.path.join(obj_dir, "vlsim_main.cpp"), "w")
