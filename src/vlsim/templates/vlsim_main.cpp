@@ -3,8 +3,13 @@
  ****************************************************************************/
 #include <stdio.h>
 #include <verilated.h>
+#if ${TRACE} == 1
+#if ${TRACER_TYPE_FST} == 1
 #include <verilated_fst_c.h>
+#else
 #include <verilated_vcd_c.h>
+#endif
+#endif
 #include "V${TOP}.h"
 
 static V${TOP}		*prv_top;
