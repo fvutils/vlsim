@@ -107,6 +107,10 @@ def main():
     
     vl_args.append('-o')
     vl_args.append('../' + args.o)
+    vl_args.append('-LDFLAGS')
+    vl_args.append('-ldl')
+    vl_args.append('-LDFLAGS')
+    vl_args.append('-rdynamic')
     
     obj_dir='obj_dir'
     

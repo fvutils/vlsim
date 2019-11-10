@@ -3,6 +3,7 @@
  ****************************************************************************/
 #include <stdio.h>
 #include <verilated.h>
+#include <dlfcn.h>
 #if ${TRACE} == 1
 #if ${TRACER_TYPE_FST} == 1
 #include <verilated_fst_c.h>
@@ -117,6 +118,31 @@ int main(int argc, char **argv) {
 			trace_file = &argv[i][strlen("+vlsim.tracefile=")];
 		}
 	}
+
+#if ${VPI} == 1
+	// Load any PLI modules
+	for (int i=1; i<argc; i++) {
+		if (!strncmp(argv[i], "+vpi=", 5)) {
+			const char *vpi_lib = &argv[i][5];
+			fprintf(stdout, "Note: Loading VPI library \"%s\"\n", vpi_lib);
+			void *lib = dlopen(vpi_lib, RTLD_LAZY);
+			if (!lib) {
+				fprintf(stdout, "Error: failed to load VPI library - \"%s\"\n", dlerror());
+				exit(1);
+			}
+			void *startup_s = dlsym(lib, "vlog_startup_routines");
+			if (!startup_s) {
+				fprintf(stdout, "Error: failed to find symbol \"vlog_startup_routines\"\n");
+				exit(1);
+			}
+			typedef void (*init_f)();
+			init_f *startup_f = (init_f *)startup_s;
+			for (int i=0; startup_f[i]; i++) {
+				startup_f[i]();
+			}
+		}
+	}
+#endif
 
 #if ${TRACE} == 1
 	if (trace_en) {
