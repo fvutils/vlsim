@@ -116,6 +116,26 @@ int main(int argc, char **argv) {
 			trace_en = true;
 		} else if (!strncmp(argv[i], "+vlsim.tracefile=", strlen("+vlsim.tracefile="))) {
 			trace_file = &argv[i][strlen("+vlsim.tracefile=")];
+		} else if (!strncmp(argv[i], "+vlsim.timeout=", strlen("+vlsim.timeout="))) {
+			char *eptr;
+			unsigned long long mfactor;
+			limit_simtime = strtoul(&argv[i][strlen("+vlsim.timeout=")], &eptr, 10);
+
+			if (!strcasecmp(eptr, "ps")) {
+				mfactor = 1;
+			} else if (!strcasecmp(eptr, "ns")) {
+				mfactor = 1000;
+			} else if (!strcasecmp(eptr, "us")) {
+				mfactor = 1000000;
+			} else if (!strcasecmp(eptr, "ms")) {
+				mfactor = 1000000000;
+			} else if (!strcasecmp(eptr, "s")) {
+				mfactor = 1000000000000;
+			} else {
+				fprintf(stdout, "Error: unknown timeout units \"%s\"\n", eptr);
+				exit(1);
+			}
+			limit_simtime *= mfactor;
 		}
 	}
 
