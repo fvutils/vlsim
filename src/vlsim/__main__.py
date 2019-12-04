@@ -59,6 +59,10 @@ def main():
             vl_args.append(arg)
             i += 1
             vl_args.append(sys.argv[i])
+        elif arg == "-LDFLAGS" or arg == "-CFLAGS":
+            vl_args.append(arg)
+            i += 1
+            vl_args.append(sys.argv[i])
         else:
             argv.append(arg)
         i += 1
@@ -107,6 +111,7 @@ def main():
     
     vl_args.append('-o')
     vl_args.append('../' + args.o)
+
     vl_args.append('-LDFLAGS')
     vl_args.append('-ldl')
     vl_args.append('-LDFLAGS')
