@@ -179,12 +179,18 @@ def main():
     else:
         vpi = "0"
         
+    if "--coverage" in vl_args:
+        coverage = "1"
+    else:
+        coverage = "0"
+        
     template_vars = {
         "TOP" : top,
         "CLOCKSPEC" : clkspec,
         "TRACE" : trace,
         "TRACER_TYPE_FST" : tracer_type_fst,
-        "VPI" : vpi
+        "VPI" : vpi,
+        "COVERAGE" : coverage
     }
     
     vlsim_main_h = open(os.path.join(obj_dir, "vlsim_main.cpp"), "w")

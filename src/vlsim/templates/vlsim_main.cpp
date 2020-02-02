@@ -14,6 +14,9 @@
 #if ${VPI} == 1
 #include <verilated_vpi.h>
 #endif
+#if VM_COVERAGE == 1
+#include <verilated_cov.h>
+#endif
 #include "V${TOP}.h"
 
 static V${TOP}		*prv_top;
@@ -279,5 +282,9 @@ ${CLOCKSPEC}
 	if (tfp) {
 		tfp->close();
 	}
+#endif
+
+#if VM_COVERAGE == 1
+	VerilatedCov::write();
 #endif
 }
