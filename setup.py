@@ -2,8 +2,14 @@
 import os
 from setuptools import setup
 
+version="0.0.1"
+
+if "BUILD_NUM" is os.environ:
+    version += "." + os.environ["BUILD_NUM"]
+
 setup(
   name = "vlsim",
+  version=version,
   packages=['vlsim'],
   package_dir = {'' : 'src'},
   author = "Matthew Ballance",
