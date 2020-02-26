@@ -1,11 +1,13 @@
 
-variables:
-  build_num: $(Build.BuildNumber)
   
 jobs:
 - job: PyPi_Linux
   pool:
    vmImage: 'ubuntu-18.04'
+
+  variables:
+  - name: build_num
+    value: $(Build.BuildNumber)
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
