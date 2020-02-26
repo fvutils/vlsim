@@ -4,7 +4,7 @@ from setuptools import setup
 
 version="0.0.1"
 
-if "BUILD_NUM" is os.environ.keys():
+if "BUILD_NUM" in os.environ.keys():
     version += "." + os.environ["BUILD_NUM"]
 
 setup(
