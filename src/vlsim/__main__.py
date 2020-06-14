@@ -38,7 +38,7 @@ def main():
     parser = argparse.ArgumentParser(description="Verilator front-end")
     parser.add_argument("-clkspec", action="append",
         help="Specifies a clock. <path>=<period>")
-    parser.add_argument("-j")
+#    parser.add_argument("-j")
     parser.add_argument("-sv", action="append_const", dest="args", const="-sv")
     parser.add_argument("-Wno-fatal", action="append_const", dest="args", const="-Wno-fatal")
     parser.add_argument('-o', default='simv')
