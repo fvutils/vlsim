@@ -17,7 +17,7 @@ from _ast import arg
 def main():
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     templates_dir = os.path.join(pkg_dir, "templates")
-    
+
     # Determine VERILATOR_ROOT either directly or from path
     if 'VERILATOR_ROOT' not in os.environ:
         for p in os.environ["PATH"].split(':'):

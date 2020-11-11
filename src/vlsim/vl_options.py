@@ -10,6 +10,8 @@ class append_arg(Action):
         super().__init__(option_strings, dest, nargs, **kwargs)
     def __call__(self, parser, namespace, values, option_string=None):
         if hasattr(namespace, "args"):
+            if namespace.args is None:
+                namespace.args = []
             namespace.args.append(option_string)
             namespace.args.append(values)
         else:
@@ -28,7 +30,7 @@ def configure_vl_options(parser, verilator):
     
     for line in fp.readlines():
         if found_begin:
-            if line.find("RUNTIME ARGUMENTS") != -1:
+            if line.find("head1 VERILATION ARGUMENTS") != -1:
                 break
 
             line = line.strip()            
