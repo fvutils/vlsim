@@ -37,7 +37,7 @@ def main():
     vl_args = [verilator_bin, "--cc", "--exe"]
     parser = argparse.ArgumentParser(description="Verilator front-end")
     parser.add_argument("-clkspec", action="append",
-        help="Specifies a clock. <path>=<period>")
+            help="Specifies a clock. <path>=<period>[:<offset>]")
 #    parser.add_argument("-j")
     parser.add_argument("-sv", action="append_const", dest="args", const="-sv")
     parser.add_argument("-Wno-fatal", action="append_const", dest="args", const="-Wno-fatal")
@@ -63,6 +63,8 @@ def main():
             vl_args.append(arg)
             i += 1
             vl_args.append(sys.argv[i])
+        elif arg.startswith("-Wno-"):
+            vl_args.append(arg)
         else:
             argv.append(arg)
         i += 1
@@ -83,23 +85,40 @@ def main():
             if cs.find("=") == -1:
                 print("Error: clkspec \"" + cs + "\" is missing an '='")
                 exit(1)
+            eq_idx = cs.find("=")
                 
+            offset="0ns"
             name=cs[:cs.find("=")]
-            period=cs[cs.find("=")+1:]
+            offset_c=cs.find(":", eq_idx)
+            if offset_c != -1:
+                offset=cs[offset_c+1:]
+                period=cs[cs.find("=")+1:offset_c]
+            else:
+                period=cs[cs.find("=")+1:]
+
+            print("offset=\"" + offset + "\" period=\"" + period + "\"")
             
             if len(period) < 2:
                 print("Error: malformed clock period \"" + period + "\"")
                 exit(1)
                 
             period_u = period[-2:]
-            period_n = int(period[:-2])
+            period_n = float(period[:-2])
             if not period_u in timescale_m.keys():
                 print("Error: unknown clockspec units \"" + period_u + "\"")
                 exit(1)
                 
             period_n *= timescale_m[period_u]
+
+            offset_u = offset[-2:]
+            offset_n = float(offset[:-2])
+            if not offset_u in timescale_m.keys():
+                print("Error: unknown clockspec units \"" + offset_u + "\"")
+                exit(1)
                 
-            spec = "\t\t{.name=\"" + name + "\", .clk=&prv_top->" + name + ", .period=" + str(period_n) + "}"
+            offset_n *= timescale_m[offset_u]
+                
+            spec = "\t\t{.name=\"" + name + "\", .clk=&prv_top->" + name + ", .period=" + str(int(period_n)) + ", .offset=" + str(int(offset_n)) + "}"
             if i+1 < len(args.clkspec):
                 spec += ",\n"
             else:

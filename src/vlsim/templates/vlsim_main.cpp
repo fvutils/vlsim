@@ -13,11 +13,22 @@
 #endif
 #if ${VPI} == 1
 #include <verilated_vpi.h>
+#include <vpi_user.h>
+#include "V${TOP}__Syms.h"
 #endif
 #if VM_COVERAGE == 1
 #include <verilated_cov.h>
 #endif
 #include "V${TOP}.h"
+
+// #define VLSIM_MAIN_DEBUG_CLOCKLOOP
+
+#ifdef VLSIM_MAIN_DEBUG_CLOCKLOOP
+#define DEBUG_CLOCKLOOP(fmt, ...) \
+	fprintf(stdout, fmt, ##__VA_ARGS__); 
+#else
+#define DEBUG_CLOCKLOOP(fmt, ...) 
+#endif
 
 static V${TOP}		*prv_top;
 
@@ -25,8 +36,8 @@ extern "C" {
 	void vlog_startup_routines_bootstrap(void) __attribute__((weak));
 
 	void vlog_startup_routines_bootstrap() {
-    	// Do Nothing
-    }
+    		// Do Nothing
+    	}
 }
 
 typedef struct clockspec_s {
@@ -47,42 +58,77 @@ double sc_time_stamp() {
 }
 
 static void insert(clockspec_t **cq, clockspec_t *it) {
+	DEBUG_CLOCKLOOP("--> insert: %lld\n", it->offset);
 	if (!*cq) {
 		*cq = it;
 		it->next = 0;
+		DEBUG_CLOCKLOOP(" insert as head of loop\n");
 	} else {
+		DEBUG_CLOCKLOOP(" head of loop offset: %lld\n", (*cq)->offset);
 		if (it->offset <= (*cq)->offset) {
+			DEBUG_CLOCKLOOP(" insert as head of loop\n");
 			(*cq)->offset -= it->offset;
 			it->next = *cq;
 			*cq = it;
 		} else {
+			DEBUG_CLOCKLOOP(" walk back through loop\n");
 			clockspec_t *t = *cq;
 			while (t->next && it->offset > t->offset) {
+				DEBUG_CLOCKLOOP(" t->offset=%lld it->offset=%lld\n",
+						t->offset, it->offset);
 				it->offset -= t->offset;
+
+				if (t->next && t->next->offset > it->offset) {
+					// Insert before the next element
+					t->next->offset -= it->offset;
+					it->next = t->next;
+					t->next = it;
+					break;
+				}
 				t = t->next;
 			}
-			it->offset -= t->offset;
-			it->next = t->next;
-			t->next = it;
+
+			if (!t->next) {
+				// Goes on the end of the list
+				it->offset -= t->offset;
+				it->next = t->next;
+				t->next = it;
+			}
 		}
 	}
+
+#ifdef VLSIM_MAIN_DEBUG_CLOCKLOOP
+	fprintf(stdout, "--> dump\n");
+	{
+		clockspec_t *t = (*cq);
+		while (t) {
+		fprintf(stdout, "  %d: clk=%p p1=%d p2=%d next=%p\n", 
+				t->offset, t->clk, t->p1, t->p2, t->next);
+			t = t->next;
+		}
+	}
+	fprintf(stdout, "<-- dump\n");
+#endif /* VLSIM_MAIN_DEBUG_CLOCKLOOP */
+
+	DEBUG_CLOCKLOOP("<-- insert: %lld\n", it->offset);
 }
 
-static void printhelp(char **argv) {
+static void printhelp() {
 	fprintf(stdout, "%s [arguments]\n");
 	fprintf(stdout, "Verilated simulation image for module \"${TOP}\"\n");
 	fprintf(stdout, "Runtime options:\n");
+	fprintf(stdout, "     +vlsim.timeout <time>                     Specifies the timeout (eg 1ms)\n");
 #if ${TRACE} == 1
-	fprintf(stdout, "     +vlsim.trace                  		    Enable tracing\n");
+	fprintf(stdout, "     +vlsim.trace                              Enable tracing\n");
 #if ${TRACER_TYPE_FST} == 1
 	fprintf(stdout, "     +vlsim.tracefile=<file>                   Specify tracefile name (default: simx.fst)\n");
 #else
 	fprintf(stdout, "     +vlsim.tracefile=<file>                   Specify tracefile name (default: simx.vcd)\n");
 #endif
 #endif
-	fprintf(stdout, "     +verilator+debug                  		Enable debugging\n");
-	fprintf(stdout, "     +verilator+debugi+<value>         		Enable debugging at a level\n");
-	fprintf(stdout, "     +verilator+help                   		Display help\n");
+	fprintf(stdout, "     +verilator+debug                          Enable debugging\n");
+	fprintf(stdout, "     +verilator+debugi+<value>                 Enable debugging at a level\n");
+	fprintf(stdout, "     +verilator+help                           Display help\n");
 	fprintf(stdout, "     +verilator+prof+threads+file+I<filename>  Set profile filename\n");
 	fprintf(stdout, "     +verilator+prof+threads+start+I<value>    Set profile starting point\n");
 	fprintf(stdout, "     +verilator+prof+threads+window+I<value>   Set profile duration\n");
@@ -94,11 +140,9 @@ static void printhelp(char **argv) {
 int main(int argc, char **argv) {
 	clockspec_t			*clockqueue = 0;
 	unsigned int		num_clocks;
-//	unsigned long long	limit_simtime = (100 * 1000 * 1000 * 1000);
 	unsigned long long	limit_simtime = (1000 * 1000 * 1000);
 	bool				trace_en = false;
 	const char			*trace_file = 0;
-//	limit_simtime *= 100;
 	limit_simtime *= 1;
 #if ${TRACER_TYPE_FST} == 1
 	VerilatedFstC		*tfp = 0;
@@ -109,9 +153,20 @@ int main(int argc, char **argv) {
 	Verilated::commandArgs(argc, argv);
 
 	prv_top = new V${TOP}();
+
+	// Determine whether we need to manually register the root scope
 #if ${VPI} == 1
 	// Turn off fatal VPI errors
 	Verilated::fatalOnVpiError(false);
+
+	// For some reason, Verilator doesn't always register a top
+	// module. This causes cocotb to fail. 
+	// The strange thing is that all the data structures are present.
+	// This allows us to manually register the top module.
+	if (!vpi_iterate(vpiModule, 0)) {
+		fprintf(stdout, "Note: manually registering root VPI module\n");
+		prv_top->__VlSymsp->__Vhier.add(0, &prv_top->__VlSymsp->__Vscope_${TOP});
+	}
 #endif
 
 	for (int i=1; i<argc; i++) {
@@ -139,7 +194,14 @@ int main(int argc, char **argv) {
 				exit(1);
 			}
 			limit_simtime *= mfactor;
-		}
+		} else if (!strcmp(argv[i], "-h") 
+				|| !strcmp(argv[i], "--h") 
+				|| !strcmp(argv[i], "-help") 
+				|| !strcmp(argv[i], "--help") 
+				|| !strcmp(argv[i], "-?")) {
+		       printhelp();
+		       exit(0);
+	      	}	       
 	}
 
 #if ${VPI} == 1
@@ -198,20 +260,22 @@ ${CLOCKSPEC}
 	// Populate clockqueue
 	for (int i=0; i<sizeof(clockspec)/sizeof(clockspec_t); i++) {
 		clockspec[i].clkval = 1;
-		clockspec[i].offset = 0;
+//		clockspec[i].offset = 0;
 		clockspec[i].p1 = clockspec[i].period/2;
 		clockspec[i].p2 = clockspec[i].period-(clockspec[i].period/2);
 		insert(&clockqueue, &clockspec[i]);
 	}
-//		fprintf(stdout, "--> dump\n");
-//		{
-//			clockspec_t *t = clockqueue;
-//			while (t) {
-//				fprintf(stdout, "  %d: clk=%p next=%p\n", t->offset, t->clk, t->next);
-//				t = t->next;
-//			}
-//		}
-//		fprintf(stdout, "<-- dump\n");
+#ifdef VLSIM_MAIN_DEBUG_CLOCKLOOP
+	fprintf(stdout, "--> dump\n");
+	{
+		clockspec_t *t = clockqueue;
+		while (t) {
+		fprintf(stdout, "  %d: clk=%p next=%p\n", t->offset, t->clk, t->next);
+			t = t->next;
+		}
+	}
+	fprintf(stdout, "<-- dump\n");
+#endif /* VLSIM_MAIN_DEBUG_CLOCKLOOP */
 
 #if ${VPI} == 1
 	vlog_startup_routines_bootstrap();
@@ -220,15 +284,31 @@ ${CLOCKSPEC}
 #endif
 
 	// Run clock loop
+	DEBUG_CLOCKLOOP("clock loop: limit_simtime=%lld clockqueue=%p gotFinish=%d\n",
+			limit_simtime, clockqueue, Verilated::gotFinish());
 	while (prv_simtime < limit_simtime && clockqueue && !Verilated::gotFinish()) {
-		clockspec_t *nc = clockqueue;
-		if ((sizeof(clockspec)/sizeof(clockspec_t)) > 1) {
-			clockqueue = clockqueue->next;
-		}
+		DEBUG_CLOCKLOOP("==> Cycle %lld\n", prv_simtime);
+		do {
+			clockspec_t *nc = clockqueue;
+			if ((sizeof(clockspec)/sizeof(clockspec_t)) > 1) {
+				clockqueue = clockqueue->next;
+			}
 
-		prv_simtime += nc->offset;
-		*nc->clk = nc->clkval;
-		nc->clkval = (nc->clkval)?0:1;
+			prv_simtime += nc->offset;
+			*nc->clk = nc->clkval;
+			DEBUG_CLOCKLOOP("  clock %s=%d @ %lld\n",
+				nc->name,
+				nc->clkval,
+				prv_simtime);
+
+			nc->clkval = (nc->clkval)?0:1;
+	
+			nc->offset = (nc->clkval)?nc->p1:nc->p2;
+			if ((sizeof(clockspec)/sizeof(clockspec_t)) > 1) {
+				insert(&clockqueue, nc);
+			}
+		} while (!clockqueue->offset && (sizeof(clockspec)/sizeof(clockspec_t)) > 1);
+		DEBUG_CLOCKLOOP("<== Cycle %lld\n", prv_simtime);
 
 #if ${VPI} == 1
 		// With VPI, we evaluate the design until
@@ -239,21 +319,21 @@ ${CLOCKSPEC}
 			prv_top->eval();
 
 #if ${VPI} == 1
-            VerilatedVpi::callValueCbs();
+			VerilatedVpi::callValueCbs();
 
-            // Call registered Read-Write callbacks
-            again = VerilatedVpi::callCbs(cbReadWriteSynch);
+			// Call registered Read-Write callbacks
+			again = VerilatedVpi::callCbs(cbReadWriteSynch);
 
-            // Call Value Change callbacks as cbReadWriteSynch
-            // can modify signals values
-            VerilatedVpi::callValueCbs();
+			// Call Value Change callbacks as cbReadWriteSynch
+			// can modify signals values
+			VerilatedVpi::callValueCbs();
 		} while (again);
 #endif
 
 #if ${VPI} == 1
 		// Call read-only and timed callbacks
-        VerilatedVpi::callCbs(cbReadOnlySynch);
-        VerilatedVpi::callTimedCbs();
+		VerilatedVpi::callCbs(cbReadOnlySynch);
+		VerilatedVpi::callTimedCbs();
 #endif
 
 #if ${TRACE} == 1
@@ -263,15 +343,10 @@ ${CLOCKSPEC}
 #endif
 
 #if ${VPI} == 1
-        // Call registered NextSimTime
-        // It should be called in new slot before everything else
-        VerilatedVpi::callCbs(cbNextSimTime);
+        	// Call registered NextSimTime
+		// It should be called in new slot before everything else
+		VerilatedVpi::callCbs(cbNextSimTime);
 #endif
-
-		nc->offset = (nc->clkval)?nc->p1:nc->p2;
-		if ((sizeof(clockspec)/sizeof(clockspec_t)) > 1) {
-			insert(&clockqueue, nc);
-		}
 	}
 
 #if ${VPI} == 1
