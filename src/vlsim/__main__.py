@@ -220,11 +220,19 @@ def main():
     vlsim_main_h = open(os.path.join(obj_dir, "vlsim_main.cpp"), "w")
     vlsim_main_h.write(vlsim_main.safe_substitute(template_vars))
     vlsim_main_h.close()
+   
+    vlsim_mk_f = open(os.path.join(templates_dir, "vlsim.mk"), "r")
+    vlsim_mk_t = Template(vlsim_mk_f.read())
+    vlsim_mk_f.close()
     
+    vlsim_mk = open(os.path.join(obj_dir, "vlsim.mk"), "w")
+    vlsim_mk.write(vlsim_mk_t.safe_substitute(template_vars))
+    vlsim_mk.close()
     
     mk_args = ['make', '-j', str(j), '-C', obj_dir, 
-               "-f", "V" + top + ".mk" ]
+               "-f", "vlsim.mk", "all" ]
     mk_log = open(os.path.join(obj_dir, "mk.log"), "w")
+    os.environ['VLSIM_OUTFILE'] = os.path.abspath(args.o)
     ret = subprocess.call(mk_args, stdout=mk_log, stderr=mk_log)
     mk_log.close()
     
