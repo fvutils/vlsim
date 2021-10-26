@@ -159,6 +159,7 @@ int main(int argc, char **argv) {
 	// Turn off fatal VPI errors
 	Verilated::fatalOnVpiError(false);
 
+#ifdef UNDEFINED
 	// For some reason, Verilator doesn't always register a top
 	// module. This causes cocotb to fail. 
 	// The strange thing is that all the data structures are present.
@@ -167,6 +168,7 @@ int main(int argc, char **argv) {
 		fprintf(stdout, "Note: manually registering root VPI module\n");
 		prv_top->__VlSymsp->__Vhier.add(0, &prv_top->__VlSymsp->__Vscope_${TOP});
 	}
+#endif
 #endif
 
 	for (int i=1; i<argc; i++) {
