@@ -2,7 +2,7 @@
 import os
 from setuptools import setup
 
-version="0.0.1"
+version="0.0.2"
 
 if "BUILD_NUM" in os.environ.keys():
     version += "." + os.environ["BUILD_NUM"]

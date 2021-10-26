@@ -329,13 +329,15 @@ ${CLOCKSPEC}
 			// Call Value Change callbacks as cbReadWriteSynch
 			// can modify signals values
 			VerilatedVpi::callValueCbs();
-		} while (again);
-#endif
 
-#if ${VPI} == 1
-		// Call read-only and timed callbacks
-		VerilatedVpi::callCbs(cbReadOnlySynch);
-		VerilatedVpi::callTimedCbs();
+			// Call read-only and timed callbacks
+			VerilatedVpi::callCbs(cbReadOnlySynch);
+			VerilatedVpi::callTimedCbs();
+
+			// If the next time is the same as this time,
+			// then there is are delta callbacks to satisfy
+			again = (VerilatedVpi::cbNextDeadline() == VL_TIME_Q());
+		} while (again);
 #endif
 
 #if ${TRACE} == 1
